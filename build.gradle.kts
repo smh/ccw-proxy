@@ -23,6 +23,41 @@ java {
     }
 }
 
+// Integration test source set
+sourceSets {
+    create("integrationTest") {
+        compileClasspath += sourceSets.main.get().output
+        runtimeClasspath += sourceSets.main.get().output
+    }
+}
+
+val integrationTestImplementation by configurations.getting {
+    extendsFrom(configurations.implementation.get())
+}
+val integrationTestRuntimeOnly by configurations.getting {
+    extendsFrom(configurations.runtimeOnly.get())
+}
+
+dependencies {
+    integrationTestImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
+    integrationTestRuntimeOnly("org.junit.platform:junit-platform-launcher")
+}
+
+val integrationTest = tasks.register<Test>("integrationTest") {
+    description = "Runs integration tests."
+    group = "verification"
+    testClassesDirs = sourceSets["integrationTest"].output.classesDirs
+    classpath = sourceSets["integrationTest"].runtimeClasspath
+    useJUnitPlatform()
+    shouldRunAfter(tasks.test)
+}
+
+tasks.register("verify") {
+    description = "Runs all verification tasks including integration tests."
+    group = "verification"
+    dependsOn(tasks.check, integrationTest)
+}
+
 application {
     mainClass.set("ccwproxy.CcwProxy")
 }

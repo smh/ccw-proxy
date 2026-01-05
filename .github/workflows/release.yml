@@ -30,8 +30,8 @@ jobs:
           native-image-job-reports: 'true'
           cache: 'gradle'
 
-      - name: Build native image
-        run: ./gradlew nativeCompile
+      - name: Build and verify
+        run: ./gradlew verify nativeCompile
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
