@@ -1,0 +1,26 @@
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+.classpath
+.project
+.settings
+bin
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Runtime
+*.log
+*.pid
+
+# Local files
+.env
+.claude/settings.local.json

@@ -1,0 +1,16 @@
+{
+  "includeCoAuthoredBy": false,
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ./scripts/ccw-setup.sh >> /tmp/session-hook.log 2>&1 || echo \"Hook failed with exit code: $?\" >> /tmp/session-hook.log"
+          }
+        ]
+      }
+    ]
+  }
+}
