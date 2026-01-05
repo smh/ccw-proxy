@@ -1,0 +1,42 @@
+plugins {
+    java
+    application
+    id("org.graalvm.buildtools.native") version "0.10.4"
+}
+
+group = "io.github.smh"
+version = "1.0.0"
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation("io.github.littleproxy:littleproxy:2.5.0")
+    implementation("org.slf4j:slf4j-simple:2.0.16")
+}
+
+java {
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of(25))
+    }
+}
+
+application {
+    mainClass.set("ccwproxy.CcwProxy")
+}
+
+graalvmNative {
+    binaries {
+        named("main") {
+            imageName.set("ccw-proxy")
+            mainClass.set("ccwproxy.CcwProxy")
+            buildArgs.addAll(
+                "--no-fallback",
+                "-H:+ReportExceptionStackTraces",
+                "--initialize-at-build-time=org.slf4j",
+                "-H:ReflectionConfigurationFiles=${projectDir}/src/main/resources/META-INF/native-image/reflect-config.json"
+            )
+        }
+    }
+}
