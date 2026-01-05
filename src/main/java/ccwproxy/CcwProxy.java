@@ -18,12 +18,17 @@ public class CcwProxy {
 
     public static void main(String[] args) {
         // Parse upstream proxy from environment
-        String proxyUrl = System.getenv("HTTPS_PROXY");
+        // Prefer CCW_UPSTREAM_PROXY to avoid conflicts - after ccw-proxy starts,
+        // HTTP_PROXY/HTTPS_PROXY should be overridden to point to this local proxy
+        String proxyUrl = System.getenv("CCW_UPSTREAM_PROXY");
+        if (proxyUrl == null) {
+            proxyUrl = System.getenv("HTTPS_PROXY");
+        }
         if (proxyUrl == null) {
             proxyUrl = System.getenv("HTTP_PROXY");
         }
         if (proxyUrl == null) {
-            System.err.println("ERROR: Set HTTPS_PROXY or HTTP_PROXY (format: http://user:pass@host:port)");
+            System.err.println("ERROR: Set CCW_UPSTREAM_PROXY (format: http://user:pass@host:port)");
             System.exit(1);
         }
 

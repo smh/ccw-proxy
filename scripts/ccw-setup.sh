@@ -54,6 +54,14 @@ if [ -z "$HTTPS_PROXY" ] && [ -z "$HTTP_PROXY" ]; then
   exit 0
 fi
 
+# Save the original upstream proxy URL before we override the env vars
+# ccw-proxy reads CCW_UPSTREAM_PROXY to know where to forward requests
+if [ -n "$HTTPS_PROXY" ]; then
+  export CCW_UPSTREAM_PROXY="$HTTPS_PROXY"
+elif [ -n "$HTTP_PROXY" ]; then
+  export CCW_UPSTREAM_PROXY="$HTTP_PROXY"
+fi
+
 # Stop any existing ccw-proxy instance
 if [ -f /tmp/ccw-proxy.pid ]; then
   OLD_PID=$(cat /tmp/ccw-proxy.pid)
@@ -73,7 +81,17 @@ echo $! > /tmp/ccw-proxy.pid
 sleep 1
 if kill -0 "$(cat /tmp/ccw-proxy.pid)" 2>/dev/null; then
   echo "[ccw-setup] ccw-proxy started (pid: $(cat /tmp/ccw-proxy.pid))"
-  echo "[ccw-setup] Setup complete! Gradle will now use the proxy shim."
+
+  # Override HTTP_PROXY/HTTPS_PROXY to point to our local proxy
+  # This ensures all tools (including Gradle wrapper) use ccw-proxy
+  # The original upstream URL is preserved in CCW_UPSTREAM_PROXY
+  export HTTP_PROXY="http://127.0.0.1:15080"
+  export HTTPS_PROXY="http://127.0.0.1:15080"
+  export http_proxy="http://127.0.0.1:15080"
+  export https_proxy="http://127.0.0.1:15080"
+
+  echo "[ccw-setup] HTTP_PROXY/HTTPS_PROXY now point to ccw-proxy"
+  echo "[ccw-setup] Setup complete!"
 else
   echo "[ccw-setup] ERROR: ccw-proxy failed to start. Check /tmp/ccw-proxy.log"
   exit 1
