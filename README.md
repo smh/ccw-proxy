@@ -42,6 +42,7 @@ chmod +x ccw-proxy
 |----------|-------------|---------|
 | `HTTPS_PROXY` or `HTTP_PROXY` | Upstream proxy URL (`http://user:pass@host:port`) | Required |
 | `PROXY_SHIM_LISTEN` | Local listen address | `127.0.0.1:15080` |
+| `CCW_PROXY_VERBOSE` | Enable verbose request/response logging | `false` |
 
 ## Gradle Configuration
 
@@ -69,9 +70,19 @@ The setup script (`ccw-setup.sh`) configures this automatically.
 ## Troubleshooting
 
 - Check proxy logs: `cat /tmp/ccw-proxy.log`
+- Enable verbose logging: `export CCW_PROXY_VERBOSE=true` before starting
 - Verify proxy is running: `ps aux | grep ccw-proxy`
 - Check environment: `echo $HTTPS_PROXY`
 - Test connectivity: `curl -x http://127.0.0.1:15080 https://repo1.maven.org/maven2/`
+
+### Log output
+
+By default, ccw-proxy logs:
+- All 4xx/5xx error responses with request URI and timing
+- Connection failures to the upstream proxy
+- Request timeouts
+
+With `CCW_PROXY_VERBOSE=true`, it also logs all requests and successful responses.
 
 ## License
 

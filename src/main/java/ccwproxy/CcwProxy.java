@@ -1,16 +1,22 @@
 package ccwproxy;
 
+import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.http.HttpObject;
 import io.netty.handler.codec.http.HttpRequest;
+import io.netty.handler.codec.http.HttpResponse;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.Base64;
 import java.util.concurrent.CountDownLatch;
 import org.littleshoot.proxy.ChainedProxyAdapter;
 import org.littleshoot.proxy.ChainedProxyManager;
+import org.littleshoot.proxy.HttpFilters;
+import org.littleshoot.proxy.HttpFiltersAdapter;
+import org.littleshoot.proxy.HttpFiltersSourceAdapter;
 import org.littleshoot.proxy.HttpProxyServer;
 import org.littleshoot.proxy.impl.DefaultHttpProxyServer;
 
@@ -101,13 +107,73 @@ public class CcwProxy {
                         request.headers().set("Proxy-Authorization", "Basic " + fBasicAuth);
                     }
                 }
+
+                @Override
+                public void connectionFailed(Throwable cause) {
+                    System.out.println("[" + Instant.now() + "] CONNECTION FAILED to upstream "
+                            + fUpstreamHost + ":" + fUpstreamPort + " - "
+                            + cause.getClass().getSimpleName()
+                            + ": " + cause.getMessage());
+                }
+
+                @Override
+                public void connectionSucceeded() {
+                    // Only log in verbose mode to avoid noise
+                }
+
+                @Override
+                public void disconnected() {
+                    // Normal disconnection, no need to log
+                }
             });
+        };
+
+        // Check if verbose logging is enabled
+        boolean verbose = "true".equalsIgnoreCase(System.getenv("CCW_PROXY_VERBOSE"));
+
+        // Create HTTP filters for logging
+        HttpFiltersSourceAdapter filtersSource = new HttpFiltersSourceAdapter() {
+            @Override
+            public HttpFilters filterRequest(HttpRequest originalRequest, ChannelHandlerContext ctx) {
+                String method = originalRequest.method().name();
+                String uri = originalRequest.uri();
+                long startTime = System.currentTimeMillis();
+
+                if (verbose) {
+                    System.out.println("[" + Instant.now() + "] " + method + " " + uri);
+                }
+
+                return new HttpFiltersAdapter(originalRequest) {
+                    @Override
+                    public HttpObject serverToProxyResponse(HttpObject httpObject) {
+                        if (httpObject instanceof HttpResponse) {
+                            HttpResponse response = (HttpResponse) httpObject;
+                            int status = response.status().code();
+                            long elapsed = System.currentTimeMillis() - startTime;
+
+                            // Always log errors (4xx/5xx), log all responses in verbose mode
+                            if (status >= 400 || verbose) {
+                                System.out.println("[" + Instant.now() + "] " + method + " " + uri + " -> " + status
+                                        + " (" + elapsed + "ms)");
+                            }
+                        }
+                        return httpObject;
+                    }
+
+                    @Override
+                    public void serverToProxyResponseTimedOut() {
+                        System.out.println("[" + Instant.now() + "] " + method + " " + uri
+                                + " -> TIMEOUT (upstream did not respond)");
+                    }
+                };
+            }
         };
 
         // Start proxy server
         HttpProxyServer server = DefaultHttpProxyServer.bootstrap()
                 .withAddress(new InetSocketAddress(listenHost, listenPort))
                 .withChainProxyManager(chainedProxyManager)
+                .withFiltersSource(filtersSource)
                 .withAllowLocalOnly(true)
                 .start();
 
