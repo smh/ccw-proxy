@@ -82,6 +82,38 @@ if [ -n "$JAVA_HOME" ] && [ -f "$JAVA_HOME/lib/security/cacerts" ]; then
   echo "[ccw-setup] Using Java truststore: $JAVA_HOME/lib/security/cacerts"
 fi
 
+# Debug: Show certificate store information for troubleshooting
+echo "[ccw-setup] Certificate debug info:"
+echo "[ccw-setup] --- System Java cacerts ---"
+ls -l /etc/ssl/certs/java/cacerts 2>/dev/null || echo "[ccw-setup] /etc/ssl/certs/java/cacerts not found"
+
+echo "[ccw-setup] --- JAVA_HOME cacerts ---"
+if [ -n "$JAVA_HOME" ] && [ -f "$JAVA_HOME/lib/security/cacerts" ]; then
+  ls -l "$JAVA_HOME/lib/security/cacerts"
+  echo "[ccw-setup] Certificates in Java truststore:"
+  keytool -list -keystore "$JAVA_HOME/lib/security/cacerts" -storepass changeit 2>/dev/null | grep -E "^[a-zA-Z].*,.*," | head -20
+  CERT_COUNT=$(keytool -list -keystore "$JAVA_HOME/lib/security/cacerts" -storepass changeit 2>/dev/null | grep -c "trustedCertEntry" || echo "0")
+  echo "[ccw-setup] Total certificates in Java truststore: $CERT_COUNT"
+else
+  echo "[ccw-setup] JAVA_HOME cacerts not found"
+fi
+
+echo "[ccw-setup] --- System CA bundle ---"
+if [ -f "/etc/ssl/certs/ca-certificates.crt" ]; then
+  ls -l /etc/ssl/certs/ca-certificates.crt
+  PEM_COUNT=$(grep -c "BEGIN CERTIFICATE" /etc/ssl/certs/ca-certificates.crt || echo "0")
+  echo "[ccw-setup] Total certificates in CA bundle: $PEM_COUNT"
+  echo "[ccw-setup] Certificate subjects (first 10):"
+  awk '/BEGIN CERTIFICATE/,/END CERTIFICATE/' /etc/ssl/certs/ca-certificates.crt | \
+    openssl crl2pkcs7 -nocrl -certfile /dev/stdin 2>/dev/null | \
+    openssl pkcs7 -print_certs -noout 2>/dev/null | \
+    grep "subject=" | head -10 || \
+    echo "[ccw-setup] Could not parse CA bundle"
+else
+  echo "[ccw-setup] /etc/ssl/certs/ca-certificates.crt not found"
+fi
+echo "[ccw-setup] --- End certificate debug ---"
+
 nohup "$BINARY_PATH" $JVM_ARGS > /tmp/ccw-proxy.log 2>&1 &
 echo $! > /tmp/ccw-proxy.pid
 
