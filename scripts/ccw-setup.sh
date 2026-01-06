@@ -14,6 +14,12 @@ BINARY_PATH="${INSTALL_DIR}/ccw-proxy"
 # Create install directory
 mkdir -p "$INSTALL_DIR"
 
+# # Ensure CA certificates are up to date (incorporates any certs in /usr/local/share/ca-certificates/)
+# if command -v update-ca-certificates >/dev/null 2>&1; then
+#   echo "[ccw-setup] Running update-ca-certificates to ensure truststore is current..."
+#   update-ca-certificates 2>/dev/null || echo "[ccw-setup] Warning: update-ca-certificates failed (may need sudo)"
+# fi
+
 # Download binary
 echo "[ccw-setup] Downloading ${BINARY_NAME}..."
 if [ "$VERSION" = "latest" ]; then
@@ -36,7 +42,7 @@ if grep -q "ccw-proxy configuration" "$GRADLE_PROPS" 2>/dev/null; then
   echo "[ccw-setup] Gradle already configured for ccw-proxy"
 else
   # Configure Gradle to use local proxy shim
-  cat >> "$GRADLE_PROPS" << 'EOF'
+  cat >>"$GRADLE_PROPS" <<'EOF'
 
 # ccw-proxy configuration
 systemProp.http.proxyHost=127.0.0.1
@@ -91,7 +97,7 @@ echo "[ccw-setup] --- JAVA_HOME cacerts ---"
 if [ -n "$JAVA_HOME" ] && [ -f "$JAVA_HOME/lib/security/cacerts" ]; then
   ls -l "$JAVA_HOME/lib/security/cacerts"
   echo "[ccw-setup] Certificates in Java truststore:"
-  keytool -list -keystore "$JAVA_HOME/lib/security/cacerts" -storepass changeit 2>/dev/null | grep -E "^[a-zA-Z].*,.*," | head -20
+  keytool -list -keystore "$JAVA_HOME/lib/security/cacerts" -storepass changeit 2>/dev/null | grep -E "^[a-zA-Z].*,.*," # | head -20
   CERT_COUNT=$(keytool -list -keystore "$JAVA_HOME/lib/security/cacerts" -storepass changeit 2>/dev/null | grep -c "trustedCertEntry" || echo "0")
   echo "[ccw-setup] Total certificates in Java truststore: $CERT_COUNT"
 else
@@ -104,18 +110,18 @@ if [ -f "/etc/ssl/certs/ca-certificates.crt" ]; then
   PEM_COUNT=$(grep -c "BEGIN CERTIFICATE" /etc/ssl/certs/ca-certificates.crt || echo "0")
   echo "[ccw-setup] Total certificates in CA bundle: $PEM_COUNT"
   echo "[ccw-setup] Certificate subjects (first 10):"
-  awk '/BEGIN CERTIFICATE/,/END CERTIFICATE/' /etc/ssl/certs/ca-certificates.crt | \
-    openssl crl2pkcs7 -nocrl -certfile /dev/stdin 2>/dev/null | \
-    openssl pkcs7 -print_certs -noout 2>/dev/null | \
-    grep "subject=" | head -10 || \
+  awk '/BEGIN CERTIFICATE/,/END CERTIFICATE/' /etc/ssl/certs/ca-certificates.crt |
+    openssl crl2pkcs7 -nocrl -certfile /dev/stdin 2>/dev/null |
+    openssl pkcs7 -print_certs -noout 2>/dev/null |
+    grep "subject=" ||
     echo "[ccw-setup] Could not parse CA bundle"
 else
   echo "[ccw-setup] /etc/ssl/certs/ca-certificates.crt not found"
 fi
 echo "[ccw-setup] --- End certificate debug ---"
 
-nohup "$BINARY_PATH" $JVM_ARGS > /tmp/ccw-proxy.log 2>&1 &
-echo $! > /tmp/ccw-proxy.pid
+nohup "$BINARY_PATH" $JVM_ARGS >/tmp/ccw-proxy.log 2>&1 &
+echo $! >/tmp/ccw-proxy.pid
 
 # Wait briefly and check if it started
 sleep 1
@@ -131,7 +137,7 @@ if kill -0 "$(cat /tmp/ccw-proxy.pid)" 2>/dev/null; then
       echo "HTTPS_PROXY=http://127.0.0.1:15080"
       echo "http_proxy=http://127.0.0.1:15080"
       echo "https_proxy=http://127.0.0.1:15080"
-    } >> "$CLAUDE_ENV_FILE"
+    } >>"$CLAUDE_ENV_FILE"
     echo "[ccw-setup] Environment variables written to CLAUDE_ENV_FILE"
   else
     echo "[ccw-setup] Warning: CLAUDE_ENV_FILE not set, env vars may not persist"
