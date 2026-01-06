@@ -82,15 +82,21 @@ sleep 1
 if kill -0 "$(cat /tmp/ccw-proxy.pid)" 2>/dev/null; then
   echo "[ccw-setup] ccw-proxy started (pid: $(cat /tmp/ccw-proxy.pid))"
 
-  # Override HTTP_PROXY/HTTPS_PROXY to point to our local proxy
-  # This ensures all tools (including Gradle wrapper) use ccw-proxy
-  # The original upstream URL is preserved in CCW_UPSTREAM_PROXY
-  export HTTP_PROXY="http://127.0.0.1:15080"
-  export HTTPS_PROXY="http://127.0.0.1:15080"
-  export http_proxy="http://127.0.0.1:15080"
-  export https_proxy="http://127.0.0.1:15080"
+  # Persist environment variables for Claude Code Web
+  # Write to CLAUDE_ENV_FILE so they're available to subsequent commands
+  if [ -n "$CLAUDE_ENV_FILE" ]; then
+    {
+      echo "CCW_UPSTREAM_PROXY=${CCW_UPSTREAM_PROXY}"
+      echo "HTTP_PROXY=http://127.0.0.1:15080"
+      echo "HTTPS_PROXY=http://127.0.0.1:15080"
+      echo "http_proxy=http://127.0.0.1:15080"
+      echo "https_proxy=http://127.0.0.1:15080"
+    } >> "$CLAUDE_ENV_FILE"
+    echo "[ccw-setup] Environment variables written to CLAUDE_ENV_FILE"
+  else
+    echo "[ccw-setup] Warning: CLAUDE_ENV_FILE not set, env vars may not persist"
+  fi
 
-  echo "[ccw-setup] HTTP_PROXY/HTTPS_PROXY now point to ccw-proxy"
   echo "[ccw-setup] Setup complete!"
 else
   echo "[ccw-setup] ERROR: ccw-proxy failed to start. Check /tmp/ccw-proxy.log"
