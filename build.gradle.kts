@@ -72,6 +72,9 @@ graalvmNative {
                 "-H:+ReportExceptionStackTraces",
                 "--initialize-at-build-time=org.slf4j",
                 "-H:ReflectionConfigurationFiles=$projectDir/src/main/resources/META-INF/native-image/reflect-config.json",
+                // Enable runtime certificate loading instead of build-time embedding
+                "--enable-url-protocols=https",
+                "-H:EnableURLProtocols=https",
             )
         }
     }

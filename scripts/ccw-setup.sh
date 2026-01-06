@@ -74,7 +74,15 @@ fi
 
 # Start the proxy in background
 echo "[ccw-setup] Starting ccw-proxy..."
-nohup "$BINARY_PATH" > /tmp/ccw-proxy.log 2>&1 &
+
+# Use system Java truststore which includes TLS inspection CA
+JVM_ARGS=""
+if [ -n "$JAVA_HOME" ] && [ -f "$JAVA_HOME/lib/security/cacerts" ]; then
+  JVM_ARGS="-Djavax.net.ssl.trustStore=$JAVA_HOME/lib/security/cacerts -Djavax.net.ssl.trustStorePassword=changeit"
+  echo "[ccw-setup] Using Java truststore: $JAVA_HOME/lib/security/cacerts"
+fi
+
+nohup "$BINARY_PATH" $JVM_ARGS > /tmp/ccw-proxy.log 2>&1 &
 echo $! > /tmp/ccw-proxy.pid
 
 # Wait briefly and check if it started
@@ -96,58 +104,6 @@ if kill -0 "$(cat /tmp/ccw-proxy.pid)" 2>/dev/null; then
   else
     echo "[ccw-setup] Warning: CLAUDE_ENV_FILE not set, env vars may not persist"
   fi
-
-  # Import TLS inspection CA into Java truststore
-  # The upstream proxy does TLS inspection, and Java needs to trust the CA
-  echo "[ccw-setup] Checking for TLS inspection CA..."
-
-  # Extract the intermediate CA cert (TLS inspection CA) from any HTTPS connection
-  TLS_CA_CERT="/tmp/tls-inspection-ca.pem"
-  if echo | openssl s_client -connect repo1.maven.org:443 -proxy 127.0.0.1:15080 -showcerts 2>/dev/null | \
-       awk '/BEGIN CERTIFICATE/,/END CERTIFICATE/{ if(/BEGIN CERTIFICATE/) n++; if(n==2) print }' > "$TLS_CA_CERT" 2>/dev/null && \
-       [ -s "$TLS_CA_CERT" ]; then
-
-    # Check if this looks like a TLS inspection CA (not the real site cert)
-    ISSUER=$(openssl x509 -in "$TLS_CA_CERT" -noout -issuer 2>/dev/null || echo "")
-    if echo "$ISSUER" | grep -qi "anthropic\|inspection\|sandbox"; then
-      echo "[ccw-setup] Found TLS inspection CA: $ISSUER"
-
-      # Find Java truststore
-      if [ -n "$JAVA_HOME" ] && [ -f "$JAVA_HOME/lib/security/cacerts" ]; then
-        CACERTS="$JAVA_HOME/lib/security/cacerts"
-      elif [ -f "/usr/lib/jvm/java-21-openjdk-amd64/lib/security/cacerts" ]; then
-        CACERTS="/usr/lib/jvm/java-21-openjdk-amd64/lib/security/cacerts"
-      elif [ -f "/usr/lib/jvm/default-java/lib/security/cacerts" ]; then
-        CACERTS="/usr/lib/jvm/default-java/lib/security/cacerts"
-      else
-        # Try to find any Java cacerts
-        CACERTS=$(find /usr/lib/jvm -name cacerts -type f 2>/dev/null | head -1)
-      fi
-
-      if [ -n "$CACERTS" ] && [ -f "$CACERTS" ]; then
-        # Check if already imported
-        if ! keytool -list -keystore "$CACERTS" -storepass changeit -alias ccw-tls-inspection-ca >/dev/null 2>&1; then
-          echo "[ccw-setup] Importing TLS inspection CA into Java truststore..."
-          if keytool -import -trustcacerts -keystore "$CACERTS" -storepass changeit \
-               -noprompt -alias ccw-tls-inspection-ca -file "$TLS_CA_CERT" 2>/dev/null; then
-            echo "[ccw-setup] TLS inspection CA imported successfully"
-          else
-            echo "[ccw-setup] Warning: Failed to import TLS inspection CA (may need root)"
-          fi
-        else
-          echo "[ccw-setup] TLS inspection CA already in truststore"
-        fi
-      else
-        echo "[ccw-setup] Warning: Could not find Java truststore"
-      fi
-    else
-      echo "[ccw-setup] No TLS inspection detected (direct connection)"
-    fi
-  else
-    echo "[ccw-setup] Warning: Could not extract TLS certificate"
-  fi
-
-  rm -f "$TLS_CA_CERT"
 
   echo "[ccw-setup] Setup complete!"
 else
